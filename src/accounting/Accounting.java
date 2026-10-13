@@ -12,6 +12,7 @@ import functions.*;
 import system.*;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.ArrayList;
 
 public class Accounting {
 
@@ -56,36 +57,35 @@ public class Accounting {
          * ============================================================================================================
          */
         
-        
-        Transaction t0 = Utils.initializeOpeningTrialBalance(LocalDate.now()); // impute begining balances to ledger
-        
-        
-        Account cash = Utils.findAccount("cash"); // create account object - to-do validation if null
+        Transaction t0 = Utils.initializeOpeningTrialBalance(LocalDate.now());
+
+        Account cash = Utils.findAccount("cash");
         Account accountsPayable = Utils.findAccount("accounts payable");
-        
-        
-        JournalEntryItem entry1 = Utils.createEntry(cash, 1000, EntryType.DEBIT); // creating entry
+
+        JournalEntryItem entry1 = Utils.createEntry(cash, 1000, EntryType.DEBIT);
         JournalEntryItem entry2 = Utils.createEntry(accountsPayable, 1000, EntryType.CREDIT);
-        Transaction t1 = Utils.createTransaction(LocalDate.now(), "Loan 1000 pesos", new JournalEntryItem[] {entry1, entry2}); // aggregating entries to one transaction
-        
-        
-        JournalEntryItem entry3 = Utils.createEntry(accountsPayable, 500, EntryType.DEBIT); // second transaction
+        Transaction t1 = Utils.createTransaction(LocalDate.now(), "Loan 1000 pesos", new JournalEntryItem[] {entry1, entry2});
+
+        JournalEntryItem entry3 = Utils.createEntry(accountsPayable, 500, EntryType.DEBIT);
         JournalEntryItem entry4 = Utils.createEntry(cash, 500, EntryType.CREDIT);
-        Transaction t2 = Utils.createTransaction(LocalDate.now(), "Paid 500 pesos", new JournalEntryItem[] {entry3, entry4}); // LocalDate.now() should be change to the actual user input date
+        Transaction t2 = Utils.createTransaction(LocalDate.now(),"Paid 500 pesos", new JournalEntryItem[] {entry3, entry4});
+
+        List<Transaction> validTransactions = new ArrayList<>();
+        if(t1 != null) validTransactions.add(t1); // ito ang pinalatian ko for testing
+        if(t2 != null) validTransactions.add(t2);
+
+        //Display
+        for(Transaction t : validTransactions){
+            Utils.displayTransaction(t);
+        }
         
-        
-        Utils.displayTransaction(t1); // printing for testing
-        Utils.displayTransaction(t2);
-        
-        
-        
-        
-        TAccount cashTAccount = Utils.createTAccountAndInitializeBeginingBalance("cash", t0); // create a TAccount and initializes its begining balannce
-        Utils.addEntries(cashTAccount, List.of(t1, t2)); // add amounts to the pased taccount
-        Utils.displayTAcount(cashTAccount); // display taccount
-        
-        TAccount APTAccount = Utils.createTAccountAndInitializeBeginingBalance("accounts payable", t0); 
-        Utils.addEntries(APTAccount, List.of(t1, t2)); 
+        //display the Taccounts
+        TAccount cashTAccount = Utils.createTAccountAndInitializeBeginingBalance("cash", t0);
+        Utils.addEntries(cashTAccount, validTransactions);
+        Utils.displayTAcount(cashTAccount);
+
+        TAccount APTAccount = Utils.createTAccountAndInitializeBeginingBalance("accounts payable", t0);
+        Utils.addEntries(APTAccount, validTransactions);
         Utils.displayTAcount(APTAccount);
     }
 }
