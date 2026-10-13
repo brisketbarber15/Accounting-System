@@ -64,6 +64,13 @@ public class Utils {
         
         List<JournalEntryItem> updatedEntries = checkForCreditsAccount(entry, date); // to track credit terms
         
+        if(updatedEntries == null){
+            return null;
+        }
+        
+        if(!doubleEntryIsValid(updatedEntries)){   // safety net
+            return null;
+        }
 //        boolean same = true;
 //        for(int i =0; i<entry.size(); i++){
 //            if(!entry.get(i).amount().equals(updatedEntries.get(i).amount())){
@@ -79,137 +86,176 @@ public class Utils {
 //            System.out.println(updatedEntries.get(j).account().name() + ": " + updatedEntries.get(j).amount());
 //        }
         
-        return new Transaction(UUID.randomUUID(), LocalDate.now(), description, updatedEntries);
+        return new Transaction(UUID.randomUUID(), date, description, updatedEntries);
     }
     
-    private static List<JournalEntryItem> checkForCreditsAccount(List<JournalEntryItem> entry, LocalDate date){
-        List<JournalEntryItem> updatedEntries = new ArrayList<>();
-        
-        entry.stream().forEach(acc -> {
-            if(!acc.account().name().equalsIgnoreCase("accounts receivable") && !acc.account().name().equalsIgnoreCase("accounts payable")){
+private static List<JournalEntryItem> checkForCreditsAccount(List<JournalEntryItem> entry, LocalDate date){
+    List<JournalEntryItem> updatedEntries = new ArrayList<>();
+    BigDecimal totalDiscount = BigDecimal.ZERO;
+
+    for (JournalEntryItem acc : entry) {
+        if(!acc.account().name().equalsIgnoreCase("accounts receivable")
+                && !acc.account().name().equalsIgnoreCase("accounts payable")){
+            updatedEntries.add(acc);
+            continue;
+        }
+
+        // ================= ACCOUNTS RECEIVABLE =================
+        if(acc.account().name().equalsIgnoreCase("accounts receivable")){
+
+            if(acc.entryType() == EntryType.DEBIT){
+                credits.addAccountReceivable(date, acc.amount());
                 updatedEntries.add(acc);
-                return;
+                continue;
             }
-            
-            if(acc.account().name().equalsIgnoreCase("accounts receivable")){
-                if(acc.entryType() == EntryType.DEBIT){
-                    credits.addAccountReceivable(date, acc.amount());
-                    updatedEntries.add(acc);
-                    return;
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate dateToFind = null;
+            boolean isValid = false;
+
+            while(!isValid){
+                String inputDate = JOptionPane.showInputDialog(
+                    null,
+                    "Enter the date the accounts receivable was originally recorded (YYYY-MM-DD):",
+                    "Date Input",
+                    JOptionPane.QUESTION_MESSAGE
+                );
+
+                if(inputDate == null){
+                    JOptionPane.showMessageDialog(null, "Operation cancelled.", "Exit", JOptionPane.WARNING_MESSAGE);
+                    return null;
                 }
 
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                LocalDate dateToFind = null;
-                boolean isValid = false;
-
-                while(!isValid){
-                    String inputDate = JOptionPane.showInputDialog(
-                        null, 
-                        "Enter the date for which the account receivable entered is recorded (in YYYY-MM-DD format):", 
-                        "Date Input", 
-                        JOptionPane.QUESTION_MESSAGE
+                try{
+                    dateToFind = LocalDate.parse(inputDate, formatter);
+                    isValid = true;
+                }catch(DateTimeParseException e){
+                    JOptionPane.showMessageDialog(
+                            null,
+                            "Invalid date or format! Please try again.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
                     );
-
-                    if(inputDate == null){
-                        JOptionPane.showMessageDialog(null, "Operation cancelled.", "Exit", JOptionPane.WARNING_MESSAGE);
-                        break; 
-                    }
-
-                    try{
-                        dateToFind = LocalDate.parse(inputDate, formatter);
-                        isValid = true; 
-                    }catch(DateTimeParseException e){
-                        JOptionPane.showMessageDialog(
-                                null, 
-                                "Invalid date or format! Please try again.", 
-                                "Error", 
-                                JOptionPane.ERROR_MESSAGE
-                            );
-                        }
-                    }
-                
-                    BigDecimal discountedAmount = credits.getAccountReceivableAmount(dateToFind, date, acc.amount());
-                    if(discountedAmount == null){
-                        JOptionPane.showMessageDialog(null, "Either accounts receivable at " + dateToFind + " is not found, or the amount paif is greater than the balance.");
-                    }
-
-                    JournalEntryItem updatedEntry = new JournalEntryItem(
-                            acc.account(), 
-                            discountedAmount, 
-                            acc.entryType()
-                    );
-
-                    updatedEntries.add(updatedEntry);
-                    
-                    JournalEntryItem addedEntry = new JournalEntryItem(
-                            findAccount("sales discounts"), 
-                            acc.amount().subtract(discountedAmount), 
-                            EntryType.CREDIT
-                    );
-
-                    updatedEntries.add(addedEntry);
-            }else{
-                if(acc.entryType() == EntryType.CREDIT){
-                    credits.addAccountPayable(date, acc.amount());
-                    updatedEntries.add(acc);
-                    return;
                 }
-                
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                LocalDate dateToFind = null;
-                boolean isValid = false;
-
-                while(!isValid){
-                    String inputDate = JOptionPane.showInputDialog(
-                        null, 
-                        "Enter the date for which the accounts payable is recorded (in YYYY-MM-DD format):", 
-                        "Date Input", 
-                        JOptionPane.QUESTION_MESSAGE
-                    );
-
-                    if(inputDate == null){
-                        JOptionPane.showMessageDialog(null, "Operation cancelled.", "Exit", JOptionPane.WARNING_MESSAGE);
-                        break; 
-                    }
-
-                    try{
-                        dateToFind = LocalDate.parse(inputDate, formatter);
-                        isValid = true; 
-                    }catch(DateTimeParseException e){
-                        JOptionPane.showMessageDialog(
-                                null, 
-                                "Invalid date or format! Please try again.", 
-                                "Error", 
-                                JOptionPane.ERROR_MESSAGE
-                            );
-                        }
-                    } // validate date to find if there is no accounts rec or pay there andddd make the calculator calculate the paid amount not the total
-                
-                    BigDecimal discountedAmount = credits.getAccountPayableAmount(dateToFind, date, acc.amount());
-                    if(discountedAmount == null){
-                        JOptionPane.showMessageDialog(null, "Either accounts payable at " + dateToFind + " is not found, or the amount paif is greater than the balance.");
-                    }
-
-                    JournalEntryItem updatedEntry = new JournalEntryItem(
-                            acc.account(), 
-                            discountedAmount, 
-                            acc.entryType()
-                    );
-
-                    updatedEntries.add(updatedEntry);
-                    
-                    JournalEntryItem addedEntry = new JournalEntryItem(
-                            findAccount("purchases discounts"), 
-                            acc.amount().subtract(discountedAmount), 
-                            EntryType.DEBIT
-                    );
-
-                    updatedEntries.add(addedEntry);
             }
-        });
-        
-        return updatedEntries;
+
+            BigDecimal discountedAmount = credits.getAccountReceivableAmount(dateToFind, date, acc.amount());
+            if(discountedAmount == null){
+                JOptionPane.showMessageDialog(null, "Either accounts receivable at " + dateToFind + " is not found, or the amount paid is greater than the balance.");
+                return null;
+            }
+
+            BigDecimal discountAmount = acc.amount().subtract(discountedAmount);
+
+            JournalEntryItem updatedEntry = new JournalEntryItem(
+                    acc.account(),
+                    acc.amount(),
+                    acc.entryType()
+            );
+            updatedEntries.add(updatedEntry);
+
+            Account salesDiscountAcc = findAccount("sales discounts");
+            if(salesDiscountAcc == null){
+                return null;
+            }
+            JournalEntryItem addedEntry = new JournalEntryItem(
+                    salesDiscountAcc,
+                    discountAmount,
+                    EntryType.DEBIT
+            );
+            updatedEntries.add(addedEntry);
+
+            totalDiscount = totalDiscount.add(discountAmount);
+
+        // ================= ACCOUNTS PAYABLE =================
+        } else {
+
+            if(acc.entryType() == EntryType.CREDIT){
+                credits.addAccountPayable(date, acc.amount());
+                updatedEntries.add(acc);
+                continue;
+            }
+
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate dateToFind = null;
+            boolean isValid = false;
+
+            while(!isValid){
+                String inputDate = JOptionPane.showInputDialog(
+                    null,
+                    "Enter the date the accounts payable was originally recorded (YYYY-MM-DD):",
+                    "Date Input",
+                    JOptionPane.QUESTION_MESSAGE
+                );
+
+                if(inputDate == null){
+                    JOptionPane.showMessageDialog(null, "Operation cancelled.", "Exit", JOptionPane.WARNING_MESSAGE);
+                    return null;
+                }
+
+                try{
+                    dateToFind = LocalDate.parse(inputDate, formatter);
+                    isValid = true;
+                }catch(DateTimeParseException e){
+                    JOptionPane.showMessageDialog(
+                            null,
+                            "Invalid date or format! Please try again.",
+                            "Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                }
+            }
+
+            BigDecimal discountedAmount = credits.getAccountPayableAmount(dateToFind, date, acc.amount());
+            if(discountedAmount == null){
+                JOptionPane.showMessageDialog(null, "Either accounts payable at " + dateToFind + " is not found, or the amount paid is greater than the balance.");
+                return null;
+            }
+
+            BigDecimal discountAmount = acc.amount().subtract(discountedAmount);
+
+            JournalEntryItem updatedEntry = new JournalEntryItem(
+                    acc.account(),
+                    acc.amount(),
+                    acc.entryType()
+            );
+            updatedEntries.add(updatedEntry);
+
+            Account purchasesDiscountAcc = findAccount("purchases discounts");
+            if(purchasesDiscountAcc == null){
+                return null;
+            }
+            JournalEntryItem addedEntry = new JournalEntryItem(
+                    purchasesDiscountAcc,
+                    discountAmount,
+                    EntryType.CREDIT
+            );
+            updatedEntries.add(addedEntry);
+
+            totalDiscount = totalDiscount.add(discountAmount);
+            }
+        }
+    
+        if(totalDiscount.compareTo(BigDecimal.ZERO) > 0){
+            adjustCashEntry(updatedEntries, totalDiscount);
+        }
+
+    return updatedEntries;
+}
+
+private static void adjustCashEntry(List<JournalEntryItem> entries, BigDecimal discountAmount){
+    for(int i = 0; i < entries.size(); i++){
+        JournalEntryItem item = entries.get(i);
+        if(item.account().name().equalsIgnoreCase("cash")){
+            entries.set(i, new JournalEntryItem(
+                    item.account(),
+                    item.amount().subtract(discountAmount),
+                    item.entryType()
+            ));
+            return;
+        }
     }
+}
     
     private static boolean doubleEntryIsValid(List<JournalEntryItem> entry){
         BigDecimal totalDebits = entry.stream() 
@@ -270,6 +316,10 @@ public class Utils {
     }
     
     public static void displayTransaction(Transaction t){
+        if(t == null){
+            System.out.println("Transaction was not created(null).");
+            return;
+        }
         for(int i=0; i<t.getItems().size(); i++){
             System.out.println(t.getDate() + " | " + t.getItems().get(i).account().name() + " | " + t.getItems().get(i).entryType() + ": " + t.getItems().get(i).amount());
         }
